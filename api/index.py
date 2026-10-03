@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from mcp_guard.web import MAX_SOURCE_CHARS, JudgeError, RequestError, scan_payload
+from mcp_guard.web import JudgeError, RequestError, health, scan_payload
 
 MAX_BODY_BYTES = 1_500_000
 
@@ -22,12 +22,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
     def do_GET(self) -> None:
-        self._send_json(200, {
-            "service": "MCP-Guard",
-            "status": "ok",
-            "usage": "POST JSON with source and/or tools/manifest; set llm_judge=true for an OpenAI second opinion.",
-            "max_source_characters": MAX_SOURCE_CHARS,
-        })
+        self._send_json(200, health())
 
     def do_POST(self) -> None:
         try:

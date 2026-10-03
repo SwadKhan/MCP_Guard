@@ -3,7 +3,9 @@
 from pathlib import Path
 from typing import Any
 
-from mcp_guard.llm_judge import borderline_findings, judge_findings
+import os
+
+from mcp_guard.llm_judge import MAX_EXPLAINED_FINDINGS, configured_model, explain_findings
 from mcp_guard.manifest import ManifestError, parse_manifest_data
 from mcp_guard.models import Finding
 from mcp_guard.scanner import DEFAULT_RULES, finding_to_dict
@@ -80,14 +82,31 @@ def scan_payload(payload: Any) -> dict[str, Any]:
         "findings": [finding_to_dict(item) for item in findings],
     }
 
-    if payload.get("llm_judge") is True:
-        try:
-            report["llm_judgments"] = judge_findings(borderline_findings(report))
-        except RuntimeError:
-            raise
-        except Exception as exc:
-            # Do not return provider exception details that could disclose request data.
-            raise JudgeError(f"OpenAI judge request failed ({type(exc).__name__})") from exc
-    elif payload.get("llm_judge") not in (None, False):
+    llm_judge = payload.get("llm_judge")
+    if llm_judge not in (None, False, True):
         raise RequestError("'llm_judge' must be a boolean")
+    if llm_judge is True and report["findings"]:
+        if not os.getenv("OPENAI_API_KEY"):
+            report["ai_error"] = "AI explanations unavailable: OPENAI_API_KEY is not configured on the server."
+        else:
+            try:
+                report["ai_explanations"] = explain_findings(report["findings"])
+                report["ai_model"] = configured_model()
+                if len(report["findings"]) > MAX_EXPLAINED_FINDINGS:
+                    report["ai_note"] = f"AI explanations cover the first {MAX_EXPLAINED_FINDINGS} findings."
+            except Exception as exc:
+                # Rule-based results are still returned; provider details are not echoed back.
+                report["ai_error"] = f"AI explanations unavailable: OpenAI request failed ({type(exc).__name__})."
     return report
+
+
+def health() -> dict[str, Any]:
+    """Health information for GET /api; never includes secret values."""
+    return {
+        "service": "MCP-Guard",
+        "status": "ok",
+        "ai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "ai_model": configured_model(),
+        "max_source_characters": MAX_SOURCE_CHARS,
+        "usage": "POST JSON with source (+filename) and/or tools/manifest; set llm_judge=true for AI explanations.",
+    }
