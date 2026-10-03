@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from mcp_guard.web import MAX_SOURCE_CHARS, RequestError, scan_payload
+from mcp_guard.web import MAX_SOURCE_CHARS, JudgeError, RequestError, scan_payload
 
 MAX_BODY_BYTES = 1_500_000
 
@@ -49,6 +49,9 @@ class handler(BaseHTTPRequestHandler):
             return
         except RequestError as exc:
             self._send_json(400, {"error": str(exc)})
+            return
+        except JudgeError as exc:
+            self._send_json(502, {"error": str(exc)})
             return
         except RuntimeError as exc:
             self._send_json(503, {"error": str(exc)})
