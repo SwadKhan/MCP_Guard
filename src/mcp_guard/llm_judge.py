@@ -109,6 +109,11 @@ def _parse_json_array(text: str) -> list[Any]:
     return result
 
 
+def _api_key() -> str:
+    """Return the configured key without stray whitespace or quotes pasted into env settings."""
+    return (os.getenv("OPENAI_API_KEY") or "").strip().strip('"').strip("'").strip()
+
+
 def explain_findings(
     findings: list[dict[str, Any]],
     *,
@@ -124,13 +129,13 @@ def explain_findings(
     selected = findings[:limit]
     if not selected:
         return []
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = _api_key()
     if not api_key and client is None:
         raise RuntimeError("OPENAI_API_KEY is not configured on the server")
     if client is None:
         from openai import OpenAI
 
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=api_key, timeout=45.0, max_retries=1)
     items = [
         {"index": index, **{key: finding.get(key) for key in _EXPLAIN_FIELDS}}
         for index, finding in enumerate(selected)

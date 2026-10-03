@@ -86,7 +86,7 @@ def scan_payload(payload: Any) -> dict[str, Any]:
     if llm_judge not in (None, False, True):
         raise RequestError("'llm_judge' must be a boolean")
     if llm_judge is True and report["findings"]:
-        if not os.getenv("OPENAI_API_KEY"):
+        if not os.getenv("OPENAI_API_KEY", "").strip():
             report["ai_error"] = "AI explanations unavailable: OPENAI_API_KEY is not configured on the server."
         else:
             try:
@@ -95,8 +95,13 @@ def scan_payload(payload: Any) -> dict[str, Any]:
                 if len(report["findings"]) > MAX_EXPLAINED_FINDINGS:
                     report["ai_note"] = f"AI explanations cover the first {MAX_EXPLAINED_FINDINGS} findings."
             except Exception as exc:
-                # Rule-based results are still returned; provider details are not echoed back.
-                report["ai_error"] = f"AI explanations unavailable: OpenAI request failed ({type(exc).__name__})."
+                # Rule-based results are still returned; only exception class names are echoed back.
+                cause = exc.__cause__ or exc.__context__
+                detail = type(exc).__name__ + (f" <- {type(cause).__name__}" if cause else "")
+                status = getattr(exc, "status_code", None)
+                if status:
+                    detail += f", HTTP {status}"
+                report["ai_error"] = f"AI explanations unavailable: OpenAI request failed ({detail})."
     return report
 
 
