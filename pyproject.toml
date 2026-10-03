@@ -23,3 +23,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.setuptools.package-data]
+mcp_guard = ["sample_ai_cache.json"]

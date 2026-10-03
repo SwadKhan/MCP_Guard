@@ -21,6 +21,10 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
+    def _client_id(self) -> str:
+        forwarded = self.headers.get("x-forwarded-for", "")
+        return (forwarded.split(",")[0].strip() or self.headers.get("x-real-ip", "") or "unknown")[:64]
+
     def do_GET(self) -> None:
         self._send_json(200, health())
 
@@ -38,7 +42,7 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             payload = json.loads(self.rfile.read(length))
-            result = scan_payload(payload)
+            result = scan_payload(payload, client_id=self._client_id())
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send_json(400, {"error": "request body must contain valid UTF-8 JSON"})
             return
