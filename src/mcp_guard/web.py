@@ -17,6 +17,10 @@ class RequestError(ValueError):
     """An invalid or oversized scan request."""
 
 
+class JudgeError(RuntimeError):
+    """The optional AI judge failed after the scan completed."""
+
+
 def scan_payload(payload: Any) -> dict[str, Any]:
     """Scan JSON fields named source, tools/manifest, and optional llm_judge."""
     if not isinstance(payload, dict):
@@ -77,7 +81,13 @@ def scan_payload(payload: Any) -> dict[str, Any]:
     }
 
     if payload.get("llm_judge") is True:
-        report["llm_judgments"] = judge_findings(borderline_findings(report))
+        try:
+            report["llm_judgments"] = judge_findings(borderline_findings(report))
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            # Do not return provider exception details that could disclose request data.
+            raise JudgeError(f"OpenAI judge request failed ({type(exc).__name__})") from exc
     elif payload.get("llm_judge") not in (None, False):
         raise RequestError("'llm_judge' must be a boolean")
     return report

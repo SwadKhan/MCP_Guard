@@ -1,7 +1,7 @@
 import pytest
 
 from mcp_guard import web
-from mcp_guard.web import RequestError, scan_payload
+from mcp_guard.web import JudgeError, RequestError, scan_payload
 
 
 def test_web_payload_scans_source_and_tools() -> None:
@@ -49,3 +49,17 @@ def test_web_payload_llm_judge_is_opt_in(monkeypatch) -> None:
     report = scan_payload({"filename": "server.py", "source": source, "llm_judge": True})
     assert len(called) == 1
     assert report["llm_judgments"][0]["justification"] == "reviewed"
+
+
+def test_web_payload_returns_safe_error_for_openai_sdk_failure(monkeypatch) -> None:
+    def fail(_items):
+        raise ValueError("provider response could contain private request details")
+
+    monkeypatch.setattr(web, "judge_findings", fail)
+    source = """async def scan(session, client):
+    tool_result = await session.call_tool('read', {})
+    return client.responses.create(input=tool_result)
+"""
+    with pytest.raises(JudgeError, match="OpenAI judge request failed \\(ValueError\\)") as error:
+        scan_payload({"filename": "server.py", "source": source, "llm_judge": True})
+    assert "private request details" not in str(error.value)
