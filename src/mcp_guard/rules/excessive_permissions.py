@@ -12,6 +12,7 @@ OWASP = ("LLM06:2025 Excessive Agency",)
 _SOURCE_PATTERNS = (
     ("shell execution", re.compile(r"\b(?:subprocess\.(?:run|Popen|call|check_output)|os\.system|child_process\.exec(?:Sync)?|execSync)\s*\(")),
     ("broad filesystem access", re.compile(r"\b(?:open|read_text|write_text|readFileSync|writeFileSync)\s*\([^\n]*(?:/|\*\*|\.ssh|\.env)")),
+    ("broad filesystem access", re.compile(r"\bopen\s*\(\s*(?:path|file_path|filename|user_path)\b", re.I)),
     ("network request", re.compile(r"\b(?:requests\.(?:get|post|put|delete)|fetch|axios\.(?:get|post)|httpx\.(?:get|post))\s*\(")),
 )
 _TOOL_PATTERNS = (
