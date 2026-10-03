@@ -1,1 +1,84 @@
-{}
+{
+  "66f86b07ff8533e969c25e2a41434e6454ac2ee1340dbace832a76f176ad08fc": {
+    "explanations": [
+      {
+        "index": 0,
+        "rule_id": "MCPG-001",
+        "verdict": "likely real",
+        "explanation": "A tool name or description appears to contain prompt-injection language telling the model to ignore prior instructions, which could manipulate tool selection or override safety constraints during agent operation.",
+        "fix": "Remove instructional phrases from tool metadata; keep names/descriptions factual, minimal, and non-directive."
+      },
+      {
+        "index": 1,
+        "rule_id": "MCPG-001",
+        "verdict": "likely real",
+        "explanation": "The tool metadata appears to include instructions to read SSH files and exfiltrate credentials. An attacker could use this to steer the model toward credential theft if the metadata is trusted.",
+        "fix": "Delete malicious instructions from metadata and review tool definitions for embedded prompts or data-exfiltration requests."
+      },
+      {
+        "index": 2,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "A tool named like command execution suggests the MCP server may let the model run shell commands. If exposed broadly, attackers could execute arbitrary commands through prompt injection.",
+        "fix": "Remove arbitrary shell execution or replace it with a strict allowlist of safe, parameterized operations."
+      },
+      {
+        "index": 3,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "The evidence suggests a command tool can access arbitrary files. An attacker could prompt the model to read secrets, source code, keys, or configuration files from the host.",
+        "fix": "Restrict filesystem access to an application-specific sandbox with explicit allowed paths and read/write permissions."
+      },
+      {
+        "index": 4,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "The evidence suggests the command tool can access arbitrary URLs. An attacker could use it for data exfiltration, SSRF, internal network probing, or downloading malicious payloads.",
+        "fix": "Block arbitrary outbound network access; enforce domain allowlists, egress filtering, and request validation."
+      }
+    ],
+    "model": "gpt-5.5",
+    "sample": "vulnerable tool manifest"
+  },
+  "ce4616c870c543544777e71a80147d3a0e3cf1da6c6e2ea38d5cadb4f2259a0c": {
+    "explanations": [
+      {
+        "index": 0,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "Using shell=True on a command exposed through MCP can let an attacker inject shell metacharacters and run arbitrary OS commands with the server's privileges.",
+        "fix": "Remove shell=True and execute only allowlisted commands with fixed arguments using subprocess.run([...], shell=False)."
+      },
+      {
+        "index": 1,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "Reading an arbitrary path lets an attacker request sensitive local files such as keys, tokens, source code, environment files, or system configuration.",
+        "fix": "Restrict reads to a dedicated base directory and reject absolute paths, traversal, and symlinks escaping it."
+      },
+      {
+        "index": 2,
+        "rule_id": "MCPG-002",
+        "verdict": "likely real",
+        "explanation": "Posting to an attacker-controlled URL can enable SSRF, internal service access, credential exfiltration, or sending sensitive model context to external endpoints.",
+        "fix": "Allowlist destinations, block private/internal IP ranges, and require explicit approval for outbound requests."
+      },
+      {
+        "index": 3,
+        "rule_id": "MCPG-005",
+        "verdict": "likely real",
+        "explanation": "A hard-coded OpenAI API key can be recovered from source, logs, packages, or repository history and used to make unauthorized API calls or incur costs.",
+        "fix": "Revoke the key, remove it from code and history, and load it from a secret manager or environment variable."
+      },
+      {
+        "index": 4,
+        "rule_id": "MCPG-005",
+        "verdict": "likely false positive",
+        "explanation": "The generic credential pattern may match placeholders, tests, or non-secret configuration. If it is a real secret, attackers with code access could reuse it.",
+        "fix": "Verify the value; if secret, rotate it and store it in a secret manager instead of source code."
+      }
+    ],
+    "model": "gpt-5.5",
+    "sample": "vulnerable Python server"
+  }
+}
