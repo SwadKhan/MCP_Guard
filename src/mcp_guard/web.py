@@ -5,6 +5,7 @@ from typing import Any
 
 import os
 
+from mcp_guard import ai_guard
 from mcp_guard.llm_judge import MAX_EXPLAINED_FINDINGS, configured_model, explain_findings
 from mcp_guard.manifest import ManifestError, parse_manifest_data
 from mcp_guard.models import Finding
@@ -23,7 +24,7 @@ class JudgeError(RuntimeError):
     """The optional AI judge failed after the scan completed."""
 
 
-def scan_payload(payload: Any) -> dict[str, Any]:
+def scan_payload(payload: Any, client_id: str = "local") -> dict[str, Any]:
     """Scan JSON fields named source, tools/manifest, and optional llm_judge."""
     if not isinstance(payload, dict):
         raise RequestError("request body must be a JSON object")
@@ -86,23 +87,45 @@ def scan_payload(payload: Any) -> dict[str, Any]:
     if llm_judge not in (None, False, True):
         raise RequestError("'llm_judge' must be a boolean")
     if llm_judge is True and report["findings"]:
-        if not os.getenv("OPENAI_API_KEY", "").strip():
-            report["ai_error"] = "AI explanations unavailable: OPENAI_API_KEY is not configured on the server."
-        else:
-            try:
-                report["ai_explanations"] = explain_findings(report["findings"])
-                report["ai_model"] = configured_model()
-                if len(report["findings"]) > MAX_EXPLAINED_FINDINGS:
-                    report["ai_note"] = f"AI explanations cover the first {MAX_EXPLAINED_FINDINGS} findings."
-            except Exception as exc:
-                # Rule-based results are still returned; only exception class names are echoed back.
-                cause = exc.__cause__ or exc.__context__
-                detail = type(exc).__name__ + (f" <- {type(cause).__name__}" if cause else "")
-                status = getattr(exc, "status_code", None)
-                if status:
-                    detail += f", HTTP {status}"
-                report["ai_error"] = f"AI explanations unavailable: OpenAI request failed ({detail})."
+        _add_ai_explanations(report, client_id)
     return report
+
+
+def _add_ai_explanations(report: dict[str, Any], client_id: str) -> None:
+    """Attach AI explanations, preferring cached results and enforcing demo rate limits."""
+    findings = report["findings"]
+    if len(findings) > MAX_EXPLAINED_FINDINGS:
+        report["ai_note"] = f"AI explanations cover the first {MAX_EXPLAINED_FINDINGS} findings."
+    key = ai_guard.cache_key(findings[:MAX_EXPLAINED_FINDINGS])
+    cached = ai_guard.get_cached(key)
+    if cached is not None:
+        report["ai_explanations"] = cached["explanations"]
+        report["ai_model"] = cached.get("model", configured_model())
+        report["ai_cached"] = True
+        return
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        report["ai_error"] = "AI explanations unavailable: OPENAI_API_KEY is not configured on the server."
+        return
+    blocked = ai_guard.allow_ai_call(client_id)
+    if blocked:
+        report["ai_error"] = blocked
+        return
+    try:
+        explanations = explain_findings(findings)
+    except Exception as exc:
+        # Rule-based results are still returned; only exception class names are echoed back.
+        cause = exc.__cause__ or exc.__context__
+        detail = type(exc).__name__ + (f" <- {type(cause).__name__}" if cause else "")
+        status = getattr(exc, "status_code", None)
+        if status:
+            detail += f", HTTP {status}"
+        report["ai_error"] = f"AI explanations unavailable: OpenAI request failed ({detail})."
+        return
+    report["ai_explanations"] = explanations
+    report["ai_model"] = configured_model()
+    report["ai_cached"] = False
+    if explanations:
+        ai_guard.put_cached(key, explanations, report["ai_model"])
 
 
 def health() -> dict[str, Any]:
@@ -110,7 +133,8 @@ def health() -> dict[str, Any]:
     return {
         "service": "MCP-Guard",
         "status": "ok",
-        "ai_configured": bool(os.getenv("OPENAI_API_KEY")),
+        "ai_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+        "ai_limit_per_ip_per_hour": ai_guard.per_client_limit(),
         "ai_model": configured_model(),
         "max_source_characters": MAX_SOURCE_CHARS,
         "usage": "POST JSON with source (+filename) and/or tools/manifest; set llm_judge=true for AI explanations.",

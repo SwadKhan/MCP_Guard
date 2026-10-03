@@ -89,13 +89,13 @@
     </div>
     <textarea id="input" spellcheck="false" aria-label="MCP manifest or source code" placeholder='Paste a tools/list JSON manifest, e.g. {"tools":[{"name":"...","description":"..."}]}, or MCP server source code (.py / .ts)'></textarea>
     <div class="row between" style="margin-top:12px">
-      <label class="small"><input type="checkbox" id="ai" checked> AI explanations (OpenAI)</label>
+      <label class="small"><input type="checkbox" id="ai"> AI explanations (OpenAI)</label>
       <div class="row">
         <button type="button" id="download" style="display:none">Download JSON report</button>
         <button type="button" class="primary" id="scan">Scan</button>
       </div>
     </div>
-    <div class="hint">Static analysis only: submitted code is never executed. Secrets are redacted before anything is sent to the AI model. Do not paste real credentials.</div>
+    <div class="hint">Static analysis only: submitted code is never executed. Secrets are redacted before anything is sent to the AI model. Do not paste real credentials. The samples use saved AI reviews; AI on your own input is limited to a few scans per hour.</div>
   </section>
 
   <div id="status" class="status" role="status" aria-live="polite"></div>
@@ -145,8 +145,8 @@ function setStatus(kind, msg) {
 }
 function clearStatus() { $("status").className = "status"; $("status").textContent = ""; }
 
-$("sampleTools").onclick = () => { $("input").value = JSON.stringify(SAMPLE_TOOLS, null, 2); };
-$("sampleSource").onclick = () => { $("input").value = SAMPLE_SOURCE; $("filename").value = "vulnerable_server.py"; };
+$("sampleTools").onclick = () => { $("input").value = JSON.stringify(SAMPLE_TOOLS, null, 2); $("ai").checked = true; };
+$("sampleSource").onclick = () => { $("input").value = SAMPLE_SOURCE; $("filename").value = "vulnerable_server.py"; $("ai").checked = true; };
 $("clear").onclick = () => { $("input").value = ""; $("results").innerHTML = ""; $("summary").innerHTML = ""; $("download").style.display = "none"; clearStatus(); };
 
 $("download").onclick = () => {
@@ -204,7 +204,7 @@ function render(report) {
 
   if (report.ai_error) setStatus("warn", report.ai_error + " Rule-based results are shown below.");
   else if (findings.length === 0) setStatus("ok", "No findings. Nothing suspicious was detected by the current rules.");
-  else setStatus("ok", `${findings.length} finding(s)` + (report.ai_explanations ? ` · AI explanations by ${report.ai_model}` : "") + (report.ai_note ? ` · ${report.ai_note}` : ""));
+  else setStatus("ok", `${findings.length} finding(s)` + (report.ai_explanations ? ` · AI explanations by ${report.ai_model}${report.ai_cached ? " (saved)" : ""}` : "") + (report.ai_note ? ` · ${report.ai_note}` : ""));
 
   $("summary").innerHTML = `<div class="stat"><b>${findings.length}</b><span>Findings</span></div>` +
     ORDER.filter((s) => counts[s]).map((s) => `<div class="stat"><b style="color:var(--${s})">${counts[s]}</b><span>${s}</span></div>`).join("");
