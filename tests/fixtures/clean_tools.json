@@ -1,0 +1,5 @@
+{
+  "tools": [
+    {"name": "add_numbers", "description": "Add two numeric values and return their sum.", "inputSchema": {"type": "object"}}
+  ]
+}
