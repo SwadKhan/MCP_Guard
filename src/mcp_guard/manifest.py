@@ -16,6 +16,11 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise ManifestError(f"cannot read JSON manifest {path}: {exc}") from exc
 
+    return parse_manifest_data(data)
+
+
+def parse_manifest_data(data: Any) -> list[dict[str, Any]]:
+    """Validate a decoded tools/list response and return normalized tool objects."""
     # MCP may be captured as a direct result or wrapped in a JSON-RPC response.
     if isinstance(data, dict) and isinstance(data.get("result"), dict):
         data = data["result"]
