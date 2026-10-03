@@ -103,3 +103,10 @@ def test_explain_findings_redacts_and_parses(monkeypatch) -> None:
     out = explain_findings([{"rule_id": "MCPG-005", "severity": "critical", "evidence": "api_key = 'ghp_12345678901234567890'"}], client=client)
     assert "ghp_12345678901234567890" not in sent["input"]
     assert out == [{"index": 0, "rule_id": "MCPG-005", "verdict": "likely real", "explanation": "e", "fix": "f"}]
+
+
+def test_api_key_whitespace_is_stripped(monkeypatch) -> None:
+    from mcp_guard.llm_judge import _api_key
+
+    monkeypatch.setenv("OPENAI_API_KEY", '  "sk-proj-abc123"\n')
+    assert _api_key() == "sk-proj-abc123"
