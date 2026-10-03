@@ -1,5 +1,6 @@
 """Coordinate source and manifest scans across registered rules."""
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -7,11 +8,15 @@ from mcp_guard.manifest import load_manifest
 from mcp_guard.models import Finding
 from mcp_guard.rules.base import Rule
 from mcp_guard.rules.excessive_permissions import ExcessivePermissionsRule
+from mcp_guard.rules.prompt_injection import PromptInjectionPathRule
+from mcp_guard.rules.rug_pull import RugPullRule, validate_baseline
 from mcp_guard.rules.secrets import SecretsRule
 from mcp_guard.rules.tool_poisoning import ToolPoisoningRule
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx"}
-DEFAULT_RULES: tuple[Rule, ...] = (ToolPoisoningRule(), ExcessivePermissionsRule(), SecretsRule())
+DEFAULT_RULES: tuple[Rule, ...] = (
+    ToolPoisoningRule(), ExcessivePermissionsRule(), SecretsRule(), PromptInjectionPathRule(), RugPullRule()
+)
 
 
 class ScanInputError(ValueError):
@@ -31,7 +36,12 @@ def collect_source_files(target: Path) -> list[Path]:
     return sorted(path for path in target.rglob("*") if path.is_file() and path.suffix.lower() in SOURCE_SUFFIXES)
 
 
-def scan(target: Path, manifest_path: Path | None = None, rules: tuple[Rule, ...] = DEFAULT_RULES) -> dict[str, Any]:
+def scan(
+    target: Path,
+    manifest_path: Path | None = None,
+    lockfile_path: Path | None = None,
+    rules: tuple[Rule, ...] = DEFAULT_RULES,
+) -> dict[str, Any]:
     """Scan source files and/or one tools/list manifest and return a JSON-ready report."""
     if target.suffix.lower() == ".json":
         if manifest_path is not None:
@@ -56,8 +66,18 @@ def scan(target: Path, manifest_path: Path | None = None, rules: tuple[Rule, ...
     if manifest_path is not None:
         tools = load_manifest(manifest_path)
         scanned_manifests.append(str(manifest_path))
-        for rule in rules:
+        active_rules = rules
+        if lockfile_path is not None:
+            try:
+                lock_data = json.loads(lockfile_path.read_text(encoding="utf-8"))
+                baseline = validate_baseline(lock_data)
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+                raise ScanInputError(f"invalid lockfile {lockfile_path}: {exc}") from exc
+            active_rules = tuple(rule for rule in rules if not isinstance(rule, RugPullRule)) + (RugPullRule(baseline),)
+        for rule in active_rules:
             findings.extend(rule.scan_tools(tools))
+    elif lockfile_path is not None:
+        raise ScanInputError("--lockfile requires a JSON tools/list manifest")
 
     counts: dict[str, int] = {}
     for finding in findings:
