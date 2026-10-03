@@ -8,7 +8,10 @@ import typer
 
 from mcp_guard import __version__
 from mcp_guard.manifest import ManifestError, load_manifest
+from mcp_guard.llm_judge import borderline_findings, judge_findings
 from mcp_guard.models import Severity
+from mcp_guard.reporters.html_report import render_html
+from mcp_guard.reporters.terminal import print_summary
 from mcp_guard.rules.rug_pull import create_baseline, validate_baseline
 from mcp_guard.scanner import ScanInputError, scan
 
@@ -40,11 +43,25 @@ def scan_command(
     manifest: Path | None = typer.Option(None, "--manifest", help="Additional tools/list JSON manifest to scan."),
     lockfile: Path | None = typer.Option(None, "--lockfile", help="Approved tool-definition baseline to compare."),
     output: Path | None = typer.Option(None, "--output", "-o", help="Write JSON report to this path instead of stdout."),
+    html_output: Path | None = typer.Option(None, "--html", help="Also write a standalone HTML report to this path."),
+    llm_judge: bool = typer.Option(False, "--llm-judge", help="Ask OpenAI to review low/medium findings (requires OPENAI_API_KEY)."),
     fail_on: FailOn = typer.Option(FailOn.NONE, "--fail-on", help="Exit 1 if any finding has this severity or higher."),
 ) -> None:
     """Scan local MCP source or a saved tools/list JSON result."""
     try:
         report = scan(target, manifest, lockfile)
+        if llm_judge:
+            try:
+                from dotenv import load_dotenv
+            except ImportError:
+                pass
+            else:
+                load_dotenv()
+            try:
+                judgments = judge_findings(borderline_findings(report))
+            except RuntimeError as exc:
+                raise typer.BadParameter(str(exc), param_hint="--llm-judge") from exc
+            report["llm_judgments"] = judgments
     except (ScanInputError, ManifestError, OSError) as exc:
         raise typer.BadParameter(str(exc), param_hint="TARGET/--manifest") from exc
 
@@ -56,6 +73,12 @@ def scan_command(
             raise typer.BadParameter(f"cannot write report {output}: {exc}", param_hint="--output") from exc
     else:
         typer.echo(rendered, nl=False)
+    if html_output:
+        try:
+            html_output.write_text(render_html(report), encoding="utf-8")
+        except OSError as exc:
+            raise typer.BadParameter(f"cannot write HTML report {html_output}: {exc}", param_hint="--html") from exc
+    print_summary(report)
 
     if fail_on is not FailOn.NONE:
         threshold = Severity.parse(fail_on.value)

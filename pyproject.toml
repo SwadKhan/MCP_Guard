@@ -12,7 +12,7 @@ dependencies = ["typer>=0.12,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5"]
-llm = ["openai>=1.30"]
+llm = ["openai>=1.30", "python-dotenv>=1"]
 
 [project.scripts]
 mcp-guard = "mcp_guard.cli:app"

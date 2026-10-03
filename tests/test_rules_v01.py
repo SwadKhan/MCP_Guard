@@ -43,6 +43,13 @@ def test_excessive_permissions_detected_in_source(filename: str) -> None:
     assert all(item.rule_id == "MCPG-002" for item in findings)
 
 
+def test_excessive_permissions_flags_user_controlled_file_path() -> None:
+    source = "def read_anything(path):\n    return open(path).read()\n"
+    findings = list(ExcessivePermissionsRule().scan_source(Path("server.py"), source))
+    assert len(findings) == 1
+    assert "filesystem" in findings[0].title
+
+
 def test_excessive_permissions_absent_from_clean_source() -> None:
     path = FIXTURES / "clean_server.py"
     assert list(ExcessivePermissionsRule().scan_source(path, path.read_text(encoding="utf-8"))) == []
