@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "Static security scanner for Model Context Protocol servers"
 readme = "README.md"
 requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Swad Mustasin Khan" }]
 dependencies = ["typer>=0.12,<1", "openai>=1.30"]
 
 [project.optional-dependencies]

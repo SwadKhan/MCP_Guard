@@ -22,11 +22,13 @@ The scanner itself is not a sandbox or a runtime policy enforcer. Findings are e
 
 ## Installation
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer. MCP-Guard is not published on PyPI yet; install it from source:
 
-    python -m pip install mcp-guard
+    git clone https://github.com/SwadKhan/MCP_Guard.git
+    cd MCP_Guard
+    python -m pip install -e .
 
-For a source checkout with development tools:
+With development tools (tests):
 
     python -m pip install -e ".[dev]"
 
@@ -129,3 +131,7 @@ After adding or changing either variable, trigger a new deployment so the functi
 - Secret detection uses known credential formats and assignment patterns. It cannot guarantee that every secret is detected.
 - A lockfile is only trustworthy if its initial contents and subsequent updates are reviewed and protected.
 - The optional LLM judge sends redacted finding data to OpenAI and depends on network/API availability. Redaction patterns cannot guarantee removal of every possible secret format.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
